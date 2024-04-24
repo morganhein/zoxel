@@ -1,0 +1,6 @@
+zig
+zig-cache
+zig-out
+.idea
+.vscode
+.zed
