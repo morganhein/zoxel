@@ -143,8 +143,23 @@ pub fn update(app: *App) !bool {
                     app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
                 } else if (ev.key == .s) {
                     app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
+                } else if (ev.key == .d) {
+                    app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
+                } else if (ev.key == .a) {
+                    app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
                 }
-                // Add more key handling for other camera movements
+            },
+            .key_repeat => |ev| {
+                if (ev.key == .space) return true;
+                if (ev.key == .w) {
+                    app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
+                } else if (ev.key == .s) {
+                    app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
+                } else if (ev.key == .d) {
+                    app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
+                } else if (ev.key == .a) {
+                    app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
+                }
             },
             .close => return true,
             else => {},
