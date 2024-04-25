@@ -32,7 +32,7 @@ camera: Camera,
 pub fn init(app: *App) !void {
     try core.init(.{});
 
-    const shader_module = core.device.createShaderModuleWGSL("cube.wgsl", @embedFile("cube.wgsl"));
+    const shader_module = core.device.createShaderModuleWGSL("cube.wgsl", @embedFile("shaders/cube.wgsl"));
 
     const vertex_attributes = [_]gpu.VertexAttribute{
         .{ .format = .float32x4, .offset = @offsetOf(Vertex, "pos"), .shader_location = 0 },

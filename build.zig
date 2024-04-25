@@ -25,32 +25,25 @@ pub fn build(b: *std.Build) !void {
         .core = true,
     });
 
+    // Iterate over the key-value pairs of mach_dep.builder.modules
+    // std.debug.print("Modules:\n", .{});
+    // var it = mach_dep.builder.modules.iterator();
+    // while (it.next()) |entry| {
+    //     std.debug.print("  {s}\n", .{entry.key_ptr.*});
+    // }
+
     // include zmath
     const zmath = b.dependency("zmath", .{});
 
-    const engine = b.createModule(.{
-        .root_source_file = .{ .path = "src/engine/main.zig" },
-        .imports = &[_]std.Build.Module.Import{
-            .{
-                .name = "zmath",
-                .module = zmath.module("root"),
-            },
-        },
-    });
-
     const app = try mach.CoreApp.init(b, mach_dep.builder, .{
-        .name = "myapp",
-        .src = "src/demos/camera_cube/main.zig",
+        .name = "ZigVoxel",
+        .src = "src/main.zig",
         .target = target,
         .optimize = optimize,
         .deps = &[_]std.Build.Module.Import{
             .{
                 .name = "zmath",
                 .module = zmath.module("root"),
-            },
-            .{
-                .name = "engine",
-                .module = engine,
             },
         },
     });
