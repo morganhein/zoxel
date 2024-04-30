@@ -14,6 +14,7 @@ const UniformBufferObject = struct {
     model: math.Mat,
     view: math.Mat,
     projection: math.Mat,
+    cubePosition: math.Mat,
 };
 
 const Camera = struct {
@@ -114,6 +115,7 @@ pub const Engine = struct {
             .target = math.f32x4(0, 0, 0, 1),
             .up = math.f32x4(0, 0, 1, 0),
         };
+
         const title_timer = try core.Timer.start();
         const timer = try core.Timer.start();
         const pipeline = core.device.createRenderPipeline(&pipeline_descriptor);
@@ -163,9 +165,10 @@ pub const Engine = struct {
                     }
                 },
                 .close => return true,
-                else => {},
+                else => return false,
             }
         }
+        return false;
     }
 
     pub fn deinit(self: *Engine) void {
@@ -178,37 +181,8 @@ pub const Engine = struct {
     }
 
     pub fn update(self: *Engine) !bool {
-        var iter = core.pollEvents();
-        while (iter.next()) |event| {
-            switch (event) {
-                .key_press => |ev| {
-                    if (ev.key == .space) return true;
-                    if (ev.key == .w) {
-                        self.camera.position = self.camera.position + math.f32x4(0, 0, 0.1, 0);
-                    } else if (ev.key == .s) {
-                        self.camera.position = self.camera.position - math.f32x4(0, 0, 0.1, 0);
-                    } else if (ev.key == .d) {
-                        self.camera.position = self.camera.position + math.f32x4(0.1, 0, 0, 0);
-                    } else if (ev.key == .a) {
-                        self.camera.position = self.camera.position - math.f32x4(0.1, 0, 0, 0);
-                    }
-                },
-                .key_repeat => |ev| {
-                    if (ev.key == .space) return true;
-                    if (ev.key == .w) {
-                        self.camera.position = self.camera.position + math.f32x4(0, 0, 0.1, 0);
-                    } else if (ev.key == .s) {
-                        self.camera.position = self.camera.position - math.f32x4(0, 0, 0.1, 0);
-                    } else if (ev.key == .d) {
-                        self.camera.position = self.camera.position + math.f32x4(0.1, 0, 0, 0);
-                    } else if (ev.key == .a) {
-                        self.camera.position = self.camera.position - math.f32x4(0.1, 0, 0, 0);
-                    }
-                },
-                .close => return true,
-                else => {},
-            }
-        }
+        const stop = try self.handle_input();
+        if (stop) return true;
 
         const back_buffer_view = core.swap_chain.getCurrentTextureView().?;
         const color_attachment = gpu.RenderPassColorAttachment{
@@ -241,6 +215,12 @@ pub const Engine = struct {
                 .model = model,
                 .view = view,
                 .projection = proj,
+                .cubePosition = .{
+                    math.f32x4(0, 0, 0, 0),
+                    math.f32x4(0, 0, 0, 0),
+                    math.f32x4(1, 0, 0, 0),
+                    math.f32x4(0, 0, 0, 0),
+                },
             };
             queue.writeBuffer(self.uniform_buffer, 0, &[_]UniformBufferObject{ubo});
         }
@@ -264,7 +244,7 @@ pub const Engine = struct {
         // update the window title every second
         if (self.title_timer.read() >= 1.0) {
             self.title_timer.reset();
-            try core.printTitle("Cube with Camera [ {d}fps ] [ Input {d}hz ]", .{
+            try core.printTitle("Render [ {d}fps ] [ Input {d}hz ]", .{
                 core.frameRate(),
                 core.inputRate(),
             });

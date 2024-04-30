@@ -9,7 +9,6 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 engine: Engine,
 
 pub fn init(app: *App) !void {
-    // sttttuttter engine
     app.engine = try Engine.init(gpa.allocator());
 }
 

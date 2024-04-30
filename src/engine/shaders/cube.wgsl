@@ -2,6 +2,7 @@ struct Uniforms {
     model : mat4x4<f32>,
     view : mat4x4<f32>,
     projection : mat4x4<f32>,
+    cubePosition: mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> ubo : Uniforms;
@@ -18,8 +19,11 @@ struct VertexOut {
 ) -> VertexOut {
      var output : VertexOut;
 
-     // Calculate the position in world space
+     // Calculate the position in world space as a cube
      var worldPosition : vec4<f32> = ubo.model * position;
+
+     // Move the cube in the world to the correct cube position
+     worldPosition = worldPosition * ubo.cubePosition;
 
      // Calculate the position in view space
      var viewPosition : vec4<f32> = ubo.view * worldPosition;
