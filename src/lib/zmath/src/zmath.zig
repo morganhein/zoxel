@@ -4552,3 +4552,24 @@ pub fn approxEqAbs(v0: anytype, v1: anytype, eps: f32) bool {
 // ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // ------------------------------------------------------------------------------
+
+// custom added functions
+/// Translates a matrix by the given vector.
+///
+/// This function creates a translation matrix from the input vector
+/// and multiplies it with the input matrix. This effectively applies
+/// the translation to the input matrix.
+///
+/// Parameters:
+///   m: The input matrix to be translated.
+///   v: The translation vector. Only the first three components (x, y, z) are used.
+///
+/// Returns: A new matrix that is the result of translating the input matrix.
+pub fn translate(m: Mat, v: Vec) Mat {
+    // Create a translation matrix using the x, y, z components of the input vector
+    const translation_matrix = translationV(v);
+
+    // Multiply the input matrix by the translation matrix
+    // This applies the translation to the input matrix
+    return mul(m, translation_matrix);
+}

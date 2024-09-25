@@ -11,16 +11,19 @@ const Vertex = @import("cube_mesh.zig").Vertex;
 const vertices = @import("cube_mesh.zig").vertices;
 
 const UniformBufferObject = struct {
-    model: math.Mat,
     view: math.Mat,
     projection: math.Mat,
-    cubePosition: math.Mat,
 };
 
 const Camera = struct {
     position: math.Vec,
     target: math.Vec,
     up: math.Vec,
+};
+
+const Cube = struct {
+    // cube position
+    position: math.Mat,
 };
 
 pub const Engine = struct {
@@ -32,12 +35,25 @@ pub const Engine = struct {
     title_timer: core.Timer,
     timer: core.Timer,
     allocator: std.mem.Allocator,
+    // slice of cubes
+    cubes: std.ArrayList(Cube),
+    instance_buffer: *gpu.Buffer,
 
     pub fn init(allocator: std.mem.Allocator) !Engine {
         try core.init(.{});
 
-        // ! Define shapes
-    
+        //const newPosition = math.f32x4(1.0, 0.0, 0.0, 0.0);
+        // Create multiple cubes
+        var cubes = std.ArrayList(Cube).init(allocator);
+        defer cubes.deinit(); // This defer is for safety in case of errors during initialization
+
+        // Add multiple cubes
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(0.0, 0.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(2.0, 0.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(-2.0, 0.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(0.0, 2.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(0.0, -2.0, 0.0, 1.0)) });
+
         // `vertex_attributes` defines the layout of vertex data for the GPU. It is an array of `gpu.VertexAttribute` structures, each specifying:
         // 1. The data format of the attribute (e.g., `float32x4` for a 4-component float vector, `float32x2` for a 2-component float vector).
         // 2. The byte offset of the attribute in the vertex structure (`@offsetOf(Vertex, "pos")` for position, `@offsetOf(Vertex, "uv")` for UV coordinates).
@@ -64,31 +80,32 @@ pub const Engine = struct {
 
         // load the shader
         // ? what does it mean to convert a shader to a module in this context?
-        const shader_module = core.device.createShaderModuleWGSL("cube.wgsl", @embedFile("shaders/cube.wgsl"));
+        const shader_module = core.device.createShaderModuleWGSL("cube.wgsl", @embedFile("shaders/cube_many.wgsl"));
         defer shader_module.release();
 
         // create the fragment, which is the color/aesethetics/transparency etc for the objects
         // BlendState controls how the blending is done for color and alpha channels when rendering
         const blend = gpu.BlendState{};
-        //  Defines a ColorTargetState for a render pipeline. 
-        // It specifies the pixel format for the framebuffer's color attachment, 
-        // the blending state, and the color write mask. 
-        // The format is taken from a core descriptor, 
-        // likely indicating the color format (e.g., RGBA, RGB). 
-        // The blend points to our previously defined BlendState, 
-        // affecting how new colors are blended with existing ones in the framebuffer. 
-        // write_mask specifies which color channels (R, G, B, A) can be written to, 
+        //  Defines a ColorTargetState for a render pipeline.
+        // It specifies the pixel format for the framebuffer's color attachment,
+        // the blending state, and the color write mask.
+        // The format is taken from a core descriptor,
+        // likely indicating the color format (e.g., RGBA, RGB).
+        // The blend points to our previously defined BlendState,
+        // affecting how new colors are blended with existing ones in the framebuffer.
+        // write_mask specifies which color channels (R, G, B, A) can be written to,
         // with all indicating all channels are writable.
         const color_target = gpu.ColorTargetState{
             .format = core.descriptor.format,
             .blend = &blend,
             .write_mask = gpu.ColorWriteMaskFlags.all,
         };
-        // Initializes a FragmentState, which is crucial for setting up the fragment shader stage of the graphics pipeline. 
-        // The module specifies the shader module containing the compiled shader code. 
-        // entry_point is the name of the function within the shader module to be executed for each fragment; "frag_main" in this case. 
-        // targets points to an array of ColorTargetState, 
-        // which describes how the output of the fragment shader is written to the framebuffer. 
+
+        // Initializes a FragmentState, which is crucial for setting up the fragment shader stage of the graphics pipeline.
+        // The module specifies the shader module containing the compiled shader code.
+        // entry_point is the name of the function within the shader module to be executed for each fragment; "frag_main" in this case.
+        // targets points to an array of ColorTargetState,
+        // which describes how the output of the fragment shader is written to the framebuffer.
         // This setup indicates a single color target is used, which is common for many rendering tasks.
         const fragment = gpu.FragmentState.init(.{
             .module = shader_module,
@@ -129,12 +146,27 @@ pub const Engine = struct {
         const pipeline_layout = core.device.createPipelineLayout(&gpu.PipelineLayout.Descriptor.init(.{
             .bind_group_layouts = &bind_group_layouts,
         }));
-        // Bind group entries define individual resources, 
-        // bind group layouts organize these resources into groups, 
+
+        // Bind group entries define individual resources,
+        // bind group layouts organize these resources into groups,
         // and pipeline layouts organize how these groups are used by the entire pipeline.
         defer pipeline_layout.release();
 
-        // Initialize a RenderPipeline descriptor for a "cube" rendering operation. 
+        // bind instance information for the cubes
+        const instance_attributes = [_]gpu.VertexAttribute{
+            .{ .format = .float32x4, .offset = 0, .shader_location = 2 },
+            .{ .format = .float32x4, .offset = 16, .shader_location = 3 },
+            .{ .format = .float32x4, .offset = 32, .shader_location = 4 },
+            .{ .format = .float32x4, .offset = 48, .shader_location = 5 },
+        };
+
+        const instance_buffer_layout = gpu.VertexBufferLayout.init(.{
+            .array_stride = @sizeOf(math.Mat),
+            .step_mode = .instance,
+            .attributes = &instance_attributes,
+        });
+
+        // Initialize a RenderPipeline descriptor for a "cube" rendering operation.
         // This descriptor configures the GPU pipeline for rendering cubes by specifying various stages and settings:
         // 1. `.label = "cube"`: Assigns a human-readable label to this pipeline configuration for easier identification.
         // 2. `.fragment = &fragment`: Sets the fragment shader to be used for this pipeline. The fragment shader is responsible for determining the color of each pixel of the cube.
@@ -153,7 +185,7 @@ pub const Engine = struct {
             .vertex = gpu.VertexState.init(.{
                 .module = shader_module,
                 .entry_point = "vertex_main",
-                .buffers = &.{vertex_buffer_layout},
+                .buffers = &.{vertex_buffer_layout, instance_buffer_layout},
             }),
             .primitive = .{
                 .cull_mode = .back,
@@ -177,9 +209,9 @@ pub const Engine = struct {
         @memcpy(vertex_mapped.?, vertices[0..]);
         vertex_buffer.unmap();
 
-        // A uniform buffer is created with specific usage flags indicating it can be a destination for copy operations 
-        // (`copy_dst`) and will be used as a uniform buffer (`uniform`). 
-        // The size of the buffer is set to the size of a `UniformBufferObject`, 
+        // A uniform buffer is created with specific usage flags indicating it can be a destination for copy operations
+        // (`copy_dst`) and will be used as a uniform buffer (`uniform`).
+        // The size of the buffer is set to the size of a `UniformBufferObject`,
         // and it is not mapped into host-visible memory at creation (`mapped_at_creation = .false`).
         const uniform_buffer = core.device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .uniform = true },
@@ -187,10 +219,26 @@ pub const Engine = struct {
             .mapped_at_creation = .false,
         });
 
-        // A bind group is created, which is a collection of resources (buffers, textures, samplers) 
-        // that can be bound to the rendering pipeline. The bind group is configured with a layout (`bgl`) 
-        // that specifies how the resources are organized and accessed by the shader. 
-        // The bind group includes one entry, which is the uniform buffer created earlier, specifying its binding index (0), 
+        // Create instance buffer
+        const instance_buffer = core.device.createBuffer(&.{
+            .usage = .{ .vertex = true, .copy_dst = true },
+            .size = @sizeOf(math.Mat) * cubes.items.len,
+            .mapped_at_creation = .true,
+        });
+        {
+            const mapped = instance_buffer.getMappedRange(math.Mat, 0, cubes.items.len);
+            var i: usize = 0;
+            for (cubes.items) |cube| {
+                mapped.?[i] = cube.position;
+                i += 1;
+            }
+            instance_buffer.unmap();
+        }
+
+        // A bind group is created, which is a collection of resources (buffers, textures, samplers)
+        // that can be bound to the rendering pipeline. The bind group is configured with a layout (`bgl`)
+        // that specifies how the resources are organized and accessed by the shader.
+        // The bind group includes one entry, which is the uniform buffer created earlier, specifying its binding index (0),
         // the buffer itself, the starting offset within the buffer (0), and the size of the data being bound (`@sizeOf(UniformBufferObject)`).
         const bind_group = core.device.createBindGroup(
             &gpu.BindGroup.Descriptor.init(.{
@@ -222,6 +270,10 @@ pub const Engine = struct {
             .title_timer = title_timer,
             .timer = timer,
             .allocator = allocator,
+            // also allocate a new cubes array
+            .cubes = std.ArrayList(Cube).init(allocator),
+            // and a new instance buffer
+            .instance_buffer = instance_buffer,
         };
     }
 
@@ -288,28 +340,28 @@ pub const Engine = struct {
         });
 
         {
-            const model = math.identity();
+            // Create view matrix from camera position
             const view = math.lookAtRh(
                 self.camera.position,
                 self.camera.target,
                 self.camera.up,
             );
+
+            // Create projection matrix
             const proj = math.perspectiveFovRh(
                 (std.math.pi / 4.0),
                 @as(f32, @floatFromInt(core.descriptor.width)) / @as(f32, @floatFromInt(core.descriptor.height)),
                 0.1,
-                10,
+                100,
             );
+
+            // Combine view and projection matrices
+            const view_proj = math.mul(proj, view);
+
+            // Update uniform buffer with view-projection matrix
             const ubo = UniformBufferObject{
-                .model = model,
+                .projection = view_proj,
                 .view = view,
-                .projection = proj,
-                .cubePosition = .{
-                    math.f32x4(0, 0, 0, 0),
-                    math.f32x4(0, 0, 0, 0),
-                    math.f32x4(1, 0, 0, 0),
-                    math.f32x4(0, 0, 0, 0),
-                },
             };
             queue.writeBuffer(self.uniform_buffer, 0, &[_]UniformBufferObject{ubo});
         }
@@ -317,8 +369,9 @@ pub const Engine = struct {
         const pass = encoder.beginRenderPass(&render_pass_info);
         pass.setPipeline(self.pipeline);
         pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
+        pass.setVertexBuffer(1, self.instance_buffer, 0, @sizeOf(math.Mat) * self.cubes.items.len);
         pass.setBindGroup(0, self.bind_group, &.{0});
-        pass.draw(vertices.len, 1, 0, 0);
+        pass.draw(vertices.len, @intCast(self.cubes.items.len), 0, 0);
         pass.end();
         pass.release();
 
@@ -341,4 +394,26 @@ pub const Engine = struct {
 
         return false;
     }
+
 };
+
+fn createInstanceBuffer(self: *Engine) !void {
+    const instance_data = try self.allocator.alloc(math.Mat, self.cubes.items.len);
+    defer self.allocator.free(instance_data);
+
+    var index: usize = 0;
+    for (self.cubes.items) |cube| {
+        instance_data[index] = cube.position;
+        index += 1;
+    }
+
+    self.instance_buffer = core.device.createBuffer(&.{
+        .usage = .{ .vertex = true, .copy_dst = true },
+        .size = @sizeOf(math.Mat) * instance_data.len,
+        .mapped_at_creation = .true,
+    });
+
+    const mapped = self.instance_buffer.getMappedRange(math.Mat, 0, instance_data.len);
+    @memcpy(mapped.?, instance_data);
+    self.instance_buffer.unmap();
+}
