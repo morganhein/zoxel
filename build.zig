@@ -1,6 +1,16 @@
 const std = @import("std");
 const mach = @import("mach");
 
+const Demo = enum {
+    claude,
+    rotating,
+    camera,
+    multiple,
+    unknown,
+};
+
+const demo = Demo.multiple;
+
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
 // runner.
@@ -35,9 +45,19 @@ pub fn build(b: *std.Build) !void {
     // include zmath
     const zmath = b.dependency("zmath", .{});
 
+    // switch the demo based on the demo constant
+    var src_path: []const u8 = "src/main.zig";
+    switch (demo) {
+        Demo.claude => src_path = "src/demos/claude_cube/main.zig",
+        Demo.rotating => src_path = "src/demos/rotating_cube/main.zig",
+        Demo.camera => src_path = "src/demos/camera_cube/main.zig",
+        Demo.multiple => src_path = "src/demos/multiple_cubes/main.zig",
+        else => {},
+    }
+
     const app = try mach.CoreApp.init(b, mach_dep.builder, .{
         .name = "ZigVoxel",
-        .src = "src/main.zig",
+        .src = src_path,
         .target = target,
         .optimize = optimize,
         .deps = &[_]std.Build.Module.Import{
