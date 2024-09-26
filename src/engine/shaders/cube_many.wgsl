@@ -1,15 +1,7 @@
-// Simple fragment shader
-@fragment
-fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Simple lighting calculation
-    let lightDir = normalize(vec3<f32>(1.0, 1.0, 1.0));
-    let diffuse = max(dot(in.fragNormal, lightDir), 0.0);
-    let color = vec3<f32>(0.7, 0.7, 0.7);  // Gray color
-    let finalColor = color * (diffuse + 0.1);  // Add some ambient light
+@group(0) @binding(0) var<uniform> ubo : mat4x4<f32>;
+@group(0) @binding(1) var<storage, read> instance_data : array<mat4x4<f32>>;
 
-    return vec4<f32>(finalColor, 1.0);
-}
-
+// types
 struct VertexInput {
     @location(0) position: vec4<f32>,
     @location(1) uv: vec2<f32>,
@@ -22,21 +14,30 @@ struct InstanceInput {
     @location(5) model_matrix_3: vec4<f32>,
 };
 
+struct VertexOutput {
+     @builtin(position) position : vec4<f32>,
+     @location(0) fragUV : vec2<f32>,
+     @location(1) fragPosition: vec4<f32>,
+}
+
+// vertex shader
 @vertex
 fn vertex_main(
     vertex: VertexInput,
-    instance: InstanceInput,
+    @builtin(instance_index) instance_index: u32
 ) -> VertexOutput {
-    let model = mat4x4<f32>(
-        instance.model_matrix_0,
-        instance.model_matrix_1,
-        instance.model_matrix_2,
-        instance.model_matrix_3
-    );
-
     var output: VertexOutput;
-    let world_pos = model * vec4<f32>(vertex.position.xyz, 1.0);
-    output.position = uniforms.projection * uniforms.view * world_pos;
-    output.uv = vertex.uv;
+    let model = instance_data[instance_index];
+    let world_pos = model * vertex.position;
+    output.position = ubo * world_pos;
+    output.fragUV = vertex.uv;
+    output.fragPosition = world_pos;
     return output;
 }
+
+//  fragment shader
+@fragment
+fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    return in.fragPosition;
+}
+
