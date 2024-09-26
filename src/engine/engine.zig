@@ -47,10 +47,12 @@ pub const Engine = struct {
 
         // Create multiple cubes
         var cubes = std.ArrayList(Cube).init(allocator);
-        defer cubes.deinit(); // This defer is for safety in case of errors during initialization
 
         // Add a cube
         try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(0.0, 0.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(1.0, 0.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(1.0, 1.0, 0.0, 1.0)) });
+        try cubes.append(Cube{ .position = math.translate(math.identity(), math.f32x4(1.0, 1.0, 1.0, 1.0)) });
 
         // load the shader
         // ? what does it mean to convert a shader to a module in this context?
@@ -116,15 +118,21 @@ pub const Engine = struct {
         // Create a bind group layout entry for a buffer. This specifies that the buffer is at binding 0,
         // it will be used for vertex data (`.vertex = true`), it's of type `uniform`, and it's accessible
         // by both the vertex and fragment shaders (the last `true` argument), with a dynamic offset of 0.
-        const bgle = gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0);
-        const bgle_instance = gpu.BindGroupLayout.Entry.buffer(1, .{ .vertex = true }, .read_only_storage, false, 0);
+        const bgle_uniform = gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0);
+        const bgle_instance = gpu.BindGroupLayout.Entry.buffer(
+            1,
+            .{ .vertex = true }, // Visibility is correct if the shader stage is vertex
+            .read_only_storage,
+            false,
+            0,
+        );
 
         // Create a bind group layout using the previously defined entry. This layout is used to inform the GPU
         // how the buffers are organized in memory. The layout is created by the device and is initialized with
         // the descriptor that contains our entries (in this case, just `bgle`).
         const bgl = core.device.createBindGroupLayout(
             &gpu.BindGroupLayout.Descriptor.init(.{
-                .entries = &.{bgle, bgle_instance},
+                .entries = &.{bgle_uniform, bgle_instance},
             }),
         );
         defer bgl.release();
@@ -151,22 +159,6 @@ pub const Engine = struct {
         // and pipeline layouts organize how these groups are used by the entire pipeline.
         defer pipeline_layout.release();
 
-        // ! Cube instance buffer
-
-        // bind instance information for the cubes
-        const instance_attributes = [_]gpu.VertexAttribute{
-            .{ .format = .float32x4, .offset = 0, .shader_location = 2 },
-            .{ .format = .float32x4, .offset = 16, .shader_location = 3 },
-            .{ .format = .float32x4, .offset = 32, .shader_location = 4 },
-            .{ .format = .float32x4, .offset = 48, .shader_location = 5 },
-        };
-
-        const instance_buffer_layout = gpu.VertexBufferLayout.init(.{
-            .array_stride = @sizeOf(math.Mat),
-            .step_mode = .instance,
-            .attributes = &instance_attributes,
-        });
-
         // Initialize a RenderPipeline descriptor for a "cube" rendering operation.
         // This descriptor configures the GPU pipeline for rendering cubes by specifying various stages and settings:
         // 1. `.label = "cube"`: Assigns a human-readable label to this pipeline configuration for easier identification.
@@ -186,7 +178,7 @@ pub const Engine = struct {
             .vertex = gpu.VertexState.init(.{
                 .module = shader_module,
                 .entry_point = "vertex_main",
-                .buffers = &.{vertex_buffer_layout, instance_buffer_layout},
+                .buffers = &.{vertex_buffer_layout},
             }),
             .primitive = .{
                 .cull_mode = .back,
@@ -222,10 +214,11 @@ pub const Engine = struct {
 
         // Create instance buffer
         const instance_buffer = core.device.createBuffer(&.{
-            .usage = .{ .vertex = true, .copy_dst = true, .storage = true},
+            .usage = .{ .copy_dst = true, .storage = true }, // Remove '.vertex = true'
             .size = @sizeOf(math.Mat) * cubes.items.len,
             .mapped_at_creation = .true,
         });
+
         // this code is scoped b/c it was copied from an AI response. Keeping it here just b/c it's interesting
         // and I want to get used to using it.
         {
@@ -254,6 +247,8 @@ pub const Engine = struct {
         );
 
         // Create a camera at the given Vector
+        // Camera is at (0, 4, 2) looking at (0, 0, 0)
+
         const camera = Camera{
             .position = math.f32x4(0, 4, 2, 1),
             .target = math.f32x4(0, 0, 0, 1),
@@ -275,7 +270,7 @@ pub const Engine = struct {
             .timer = timer,
             .allocator = allocator,
             // also allocate a new cubes array
-            .cubes = std.ArrayList(Cube).init(allocator),
+            .cubes = cubes,
             // and a new instance buffer
             .instance_buffer = instance_buffer,
         };
@@ -319,10 +314,13 @@ pub const Engine = struct {
     pub fn deinit(self: *Engine) void {
         defer core.deinit();
 
+        self.cubes.deinit();
+
         self.vertex_buffer.release();
         self.uniform_buffer.release();
         self.bind_group.release();
         self.pipeline.release();
+        self.instance_buffer.reference();
     }
 
     pub fn update(self: *Engine) !bool {
@@ -369,10 +367,14 @@ pub const Engine = struct {
             queue.writeBuffer(self.uniform_buffer, 0, &[_]UniformBufferObject{ubo});
         }
 
+        {
+            const instance_data = self.cubes.items;
+            queue.writeBuffer(self.instance_buffer, 0, instance_data);
+        }
+
         const pass = encoder.beginRenderPass(&render_pass_info);
         pass.setPipeline(self.pipeline);
         pass.setVertexBuffer(0, self.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
-        pass.setVertexBuffer(1, self.instance_buffer, 0, @sizeOf(math.Mat) * self.cubes.items.len);
         pass.setBindGroup(0, self.bind_group, &.{0});
         pass.draw(vertices.len, @intCast(self.cubes.items.len), 0, 0);
         pass.end();
@@ -389,9 +391,10 @@ pub const Engine = struct {
         // update the window title every second
         if (self.title_timer.read() >= 1.0) {
             self.title_timer.reset();
-            try core.printTitle("Render [ {d}fps ] [ Input {d}hz ]", .{
+            try core.printTitle("Render [ {d}fps ] [ Input {d}hz ] [ {d} Cube(s) ]", .{
                 core.frameRate(),
                 core.inputRate(),
+                self.cubes.items.len,
             });
         }
 
@@ -399,24 +402,3 @@ pub const Engine = struct {
     }
 
 };
-
-fn createInstanceBuffer(self: *Engine) !void {
-    const instance_data = try self.allocator.alloc(math.Mat, self.cubes.items.len);
-    defer self.allocator.free(instance_data);
-
-    var index: usize = 0;
-    for (self.cubes.items) |cube| {
-        instance_data[index] = cube.position;
-        index += 1;
-    }
-
-    self.instance_buffer = core.device.createBuffer(&.{
-        .usage = .{ .vertex = true, .copy_dst = true },
-        .size = @sizeOf(math.Mat) * instance_data.len,
-        .mapped_at_creation = .true,
-    });
-
-    const mapped = self.instance_buffer.getMappedRange(math.Mat, 0, instance_data.len);
-    @memcpy(mapped.?, instance_data);
-    self.instance_buffer.unmap();
-}

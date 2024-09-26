@@ -28,9 +28,10 @@ fn vertex_main(
 ) -> VertexOutput {
     var output: VertexOutput;
     let model = instance_data[instance_index];
-    let world_pos = model * vertex.position;
     output.position = ubo * world_pos;
     output.fragUV = vertex.uv;
+
+    let world_pos = model * vertex.position;
     output.fragPosition = world_pos;
     return output;
 }
@@ -38,6 +39,6 @@ fn vertex_main(
 //  fragment shader
 @fragment
 fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.fragPosition;
+    return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red color
 }
 
