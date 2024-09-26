@@ -14,6 +14,7 @@ const debug: bool = false;
 const UniformBufferObject = struct {
     projection: math.Mat,
     view: math.Mat,
+    model: math.Mat,
 };
 
 const Camera = struct {
@@ -23,7 +24,6 @@ const Camera = struct {
 };
 
 const Cube = struct {
-    // cube position
     position: math.Mat,
 };
 
@@ -44,7 +44,7 @@ pub fn init(app: *App) !void {
     // const allocator = gpa.allocator();
     app.allocator = gpa.allocator();
 
-    const shader_module = core.device.createShaderModuleWGSL("cubes.wgsl", @embedFile("cubes.wgsl"));
+    const shader_module = core.device.createShaderModuleWGSL("cubes.wgsl", @embedFile("cube.wgsl"));
 
     const vertex_attributes = [_]gpu.VertexAttribute{
         .{ .format = .float32x4, .offset = @offsetOf(Vertex, "pos"), .shader_location = 0 },
@@ -69,10 +69,16 @@ pub fn init(app: *App) !void {
     });
 
     const uniformBgle = gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0);
-    const instanceBgle = gpu.BindGroupLayout.Entry.buffer(1, .{ .vertex = true }, .read_only_storage, true, 0);
+    // const instanceBgle = gpu.BindGroupLayout.Entry.buffer(1, .{ .vertex = true }, .read_only_storage, false, 0);
+    // const bgl = core.device.createBindGroupLayout(
+    //     &gpu.BindGroupLayout.Descriptor.init(.{
+    //         .entries = &.{ uniformBgle, instanceBgle },
+    //     }),
+    // );
+
     const bgl = core.device.createBindGroupLayout(
         &gpu.BindGroupLayout.Descriptor.init(.{
-            .entries = &.{uniformBgle, instanceBgle},
+            .entries = &.{ uniformBgle },
         }),
     );
 
@@ -115,26 +121,28 @@ pub fn init(app: *App) !void {
     var cubes = std.ArrayList(Cube).init(app.allocator);
 
     // Add cubes and print their positions
-    const positions = [_]math.F32x4{
-        math.f32x4(0.0, 0.0, 0.0, 1.0),
-        math.f32x4(1.0, 0.0, 0.0, 1.0),
-        math.f32x4(1.0, 1.0, 0.0, 1.0),
-        math.f32x4(1.0, 1.0, 1.0, 1.0),
-    };
+    // const positions = [_]math.F32x4{
+    //     math.f32x4(0.0, 0.0, 0.0, 1.0),
+    //     math.f32x4(1.0, 0.0, 0.0, 1.0),
+    //     math.f32x4(1.0, 1.0, 0.0, 1.0),
+    //     math.f32x4(1.0, 1.0, 1.0, 1.0),
+    // };
 
-    for (positions) |pos| {
-        const translated = math.translate(math.identity(), pos);
-        try cubes.append(Cube{ .position = translated });
-        if (debug) {
-            const translation = math.Vec{
-                translated[3][0],
-                translated[3][1],
-                translated[3][2],
-                translated[3][3],
-            };
-            std.debug.print("Cube position: {any}\n", .{translation});
-        }
-    }
+    // for (positions) |pos| {
+    //     const translated = math.translate(math.identity(), pos);
+    //     try cubes.append(Cube{ .position = translated });
+    //     if (debug) {
+    //         const translation = math.Vec{
+    //             translated[3][0],
+    //             translated[3][1],
+    //             translated[3][2],
+    //             translated[3][3],
+    //         };
+    //         std.debug.print("Cube position: {any}\n", .{translation});
+    //     }
+    // }
+
+    try cubes.append(Cube{ .position = math.identity() });
 
     const instance_buffer = core.device.createBuffer(&.{
         .usage = .{ .copy_dst = true, .storage = true },
@@ -159,6 +167,15 @@ pub fn init(app: *App) !void {
             .layout = bgl,
             .entries = &.{
                 gpu.BindGroup.Entry.buffer(0, uniform_buffer, 0, @sizeOf(UniformBufferObject)),
+                // gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(math.Mat) * cubes.items.len),
+            },
+        }),
+    );
+
+    const bind_group2 = core.device.createBindGroup(
+        &gpu.BindGroup.Descriptor.init(.{
+            .layout = bgl,
+            .entries = &.{
                 gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(math.Mat) * cubes.items.len),
             },
         }),
@@ -172,7 +189,7 @@ pub fn init(app: *App) !void {
     app.instance_buffer = instance_buffer;
     app.bind_group = bind_group;
     app.camera = Camera{
-        .position = math.f32x4(0, 6, 4, 1),
+        .position = math.f32x4(0, 4, 2, 1),
         .target = math.f32x4(0, 0, 0, 1),
         .up = math.f32x4(0, 0, 1, 0),
     };
@@ -243,6 +260,7 @@ pub fn update(app: *App) !bool {
     });
 
     {
+        const model = math.identity();
         const view = math.lookAtRh(
             app.camera.position,
             app.camera.target,
@@ -255,55 +273,22 @@ pub fn update(app: *App) !bool {
             10,
         );
         const ubo = UniformBufferObject{
+            .model = model,
             .view = view,
             .projection = proj,
         };
         queue.writeBuffer(app.uniform_buffer, 0, &[_]UniformBufferObject{ubo});
     }
-
-
-    // transpose:
+    //
     // {
-    //     const view = math.transpose(math.lookAtRh(
-    //         app.camera.position,
-    //         app.camera.target,
-    //         app.camera.up,
-    //     ));
-    //     const proj = math.transpose(math.perspectiveFovRh(
-    //         (std.math.pi / 4.0),
-    //         @as(f32, @floatFromInt(core.descriptor.width)) / @as(f32, @floatFromInt(core.descriptor.height)),
-    //         0.1,
-    //         10,
-    //     ));
-    //     const ubo = UniformBufferObject{
-    //         .view = view,
-    //         .projection = proj,
-    //     };
-    //     queue.writeBuffer(app.uniform_buffer, 0, &[_]UniformBufferObject{ubo});
-    // }
-
-    {
-        const instance_data = app.cubes.items;
-        queue.writeBuffer(app.instance_buffer, 0, instance_data);
-    }
-
-    // transpose:
-    // {
-    //     const len = app.cubes.items.len;
-    //     var mats = try app.allocator.alloc(math.Mat, len);
-    //     defer app.allocator.free(mats);
-    //     var i: usize = 0;
-    //     for (app.cubes.items) |cube| {
-    //         mats[i] = math.transpose(cube.position);
-    //         i += 1;
-    //     }
-    //     queue.writeBuffer(app.instance_buffer, 0, mats);
+    //     const instance_data = app.cubes.items;
+    //     queue.writeBuffer(app.instance_buffer, 0, instance_data);
     // }
 
     const pass = encoder.beginRenderPass(&render_pass_info);
     pass.setPipeline(app.pipeline);
     pass.setVertexBuffer(0, app.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
-    pass.setBindGroup(0, app.bind_group, &.{0, 0});
+    pass.setBindGroup(0, app.bind_group, &.{ 0 });
     pass.draw(vertices.len, @intCast(app.cubes.items.len), 0, 0);
     pass.end();
     pass.release();
@@ -319,9 +304,10 @@ pub fn update(app: *App) !bool {
     // update the window title every second
     if (app.title_timer.read() >= 1.0) {
         app.title_timer.reset();
-        try core.printTitle("Cube with Camera [ {d}fps ] [ Input {d}hz ]", .{
+        try core.printTitle("Cube with Camera [ {d}fps ] [ Input {d}hz ] [ Cube(s): {d}", .{
             core.frameRate(),
             core.inputRate(),
+            app.cubes.items.len,
         });
     }
 

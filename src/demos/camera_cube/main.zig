@@ -21,12 +21,17 @@ const Camera = struct {
     up: math.Vec,
 };
 
+const Cube = struct {
+    position: math.Mat,
+};
+
 title_timer: core.Timer,
 timer: core.Timer,
 pipeline: *gpu.RenderPipeline,
 vertex_buffer: *gpu.Buffer,
 uniform_buffer: *gpu.Buffer,
 bind_group: *gpu.BindGroup,
+cubes: std.ArrayList(Cube),
 camera: Camera,
 
 pub fn init(app: *App) !void {
