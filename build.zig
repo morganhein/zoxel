@@ -2,6 +2,7 @@ const std = @import("std");
 const mach = @import("mach");
 
 const Demo = enum {
+    engine,
     claude,
     rotating,
     camera,
@@ -9,7 +10,7 @@ const Demo = enum {
     unknown,
 };
 
-const demo = Demo.camera;
+const demo = Demo.engine;
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -48,11 +49,12 @@ pub fn build(b: *std.Build) !void {
     // switch the demo based on the demo constant
     var src_path: []const u8 = "src/main.zig";
     switch (demo) {
+        Demo.engine => src_path = "src/main.zig",
         Demo.claude => src_path = "src/demos/claude_cube/main.zig",
         Demo.rotating => src_path = "src/demos/rotating_cube/main.zig",
         Demo.camera => src_path = "src/demos/camera_cube/main.zig",
         Demo.multiple => src_path = "src/demos/multiple_cubes/main.zig",
-        else => {},
+        else => src_path = "src/main.zig",
     }
 
     const app = try mach.CoreApp.init(b, mach_dep.builder, .{

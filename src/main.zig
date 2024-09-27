@@ -7,10 +7,13 @@ const ClaudeCube = @import("demos/claude_cube/main.zig");
 
 pub const App = @This();
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const debug: bool = true;
 engine: Engine,
 
 pub fn init(app: *App) !void {
-    app.engine = try Engine.init(gpa.allocator());
+    app.engine = try Engine.init(gpa.allocator(), debug);
+    std.debug.print("initial engine camera position:\n", .{});
+    Engine.debugCam(debug, app.engine.camera);
 }
 
 pub fn deinit(app: *App) void {

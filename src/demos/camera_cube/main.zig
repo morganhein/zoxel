@@ -25,16 +25,19 @@ const Cube = struct {
     position: math.Mat,
 };
 
+allocator: std.mem.Allocator,
+
 title_timer: core.Timer,
 timer: core.Timer,
+
 pipeline: *gpu.RenderPipeline,
 vertex_buffer: *gpu.Buffer,
 uniform_buffer: *gpu.Buffer,
 instance_buffer: *gpu.Buffer,
 bind_group: *gpu.BindGroup,
+
 cubes: std.ArrayList(Cube),
 camera: Camera,
-allocator: std.mem.Allocator,
 
 pub fn init(app: *App) !void {
     try core.init(.{});
@@ -339,7 +342,15 @@ pub fn update(app: *App) !bool {
             core.inputRate(),
             app.cubes.items.len,
         });
+        debugInfo(app);
     }
 
     return false;
+}
+
+fn debugInfo(engine: *App) void {
+    std.debug.print("Camera Position: {any}\n", .{engine.camera.position});
+    std.debug.print("Camera Target: {any}\n", .{engine.camera.target});
+    std.debug.print("Camera Up: {any}\n", .{engine.camera.up});
+    std.debug.print("\n", .{});
 }

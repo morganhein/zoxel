@@ -1,44 +1,49 @@
-@group(0) @binding(0) var<uniform> ubo : mat4x4<f32>;
-@group(0) @binding(1) var<storage, read> instance_data : array<mat4x4<f32>>;
+struct Uniforms {
+    view : mat4x4<f32>,
+    projection : mat4x4<f32>,
+}
 
-// types
-struct VertexInput {
-    @location(0) position: vec4<f32>,
-    @location(1) uv: vec2<f32>,
-};
+struct Cube {
+    position : mat4x4<f32>,
+}
 
-struct InstanceInput {
-    @location(2) model_matrix_0: vec4<f32>,
-    @location(3) model_matrix_1: vec4<f32>,
-    @location(4) model_matrix_2: vec4<f32>,
-    @location(5) model_matrix_3: vec4<f32>,
-};
+@group(0) @binding(0) var<uniform> ubo : Uniforms;
+@group(0) @binding(1) var<storage, read> instance_data : array<Cube>;
 
-struct VertexOutput {
-     @builtin(position) position : vec4<f32>,
+struct VertexOut {
+     @builtin(position) position_clip : vec4<f32>,
      @location(0) fragUV : vec2<f32>,
      @location(1) fragPosition: vec4<f32>,
 }
 
-// vertex shader
-@vertex
-fn vertex_main(
-    vertex: VertexInput,
-    @builtin(instance_index) instance_index: u32
-) -> VertexOutput {
-    var output: VertexOutput;
-    let model = instance_data[instance_index];
-    output.position = ubo * world_pos;
-    output.fragUV = vertex.uv;
+@vertex fn vertex_main(
+     @location(0) position : vec4<f32>,
+     @location(1) uv: vec2<f32>,
+     @builtin(instance_index) instance_index: u32
+) -> VertexOut {
+     var output : VertexOut;
 
-    let world_pos = model * vertex.position;
-    output.fragPosition = world_pos;
-    return output;
+     // Get the model matrix for this instance
+     let cube = instance_data[instance_index];
+
+     // Calculate the position in world space
+     var worldPosition : vec4<f32> = cube.position * position;
+
+     // Calculate the position in view space
+     var viewPosition : vec4<f32> = ubo.view * worldPosition;
+
+     // Calculate the position in clip space
+     output.position_clip = ubo.projection * viewPosition;
+
+     output.fragUV = uv;
+     output.fragPosition = 0.5 * (position + vec4<f32>(1.0, 1.0, 1.0, 1.0));
+
+     return output;
 }
 
-//  fragment shader
-@fragment
-fn fragment_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0, 0.0, 0.0, 1.0); // Red color
+@fragment fn frag_main(
+    @location(0) fragUV: vec2<f32>,
+    @location(1) fragPosition: vec4<f32>
+) -> @location(0) vec4<f32> {
+    return fragPosition;
 }
-
