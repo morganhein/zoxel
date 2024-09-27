@@ -9,7 +9,7 @@ const Demo = enum {
     unknown,
 };
 
-const demo = Demo.multiple;
+const demo = Demo.camera;
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external

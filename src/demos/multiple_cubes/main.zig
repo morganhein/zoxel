@@ -172,15 +172,6 @@ pub fn init(app: *App) !void {
         }),
     );
 
-    const bind_group2 = core.device.createBindGroup(
-        &gpu.BindGroup.Descriptor.init(.{
-            .layout = bgl,
-            .entries = &.{
-                gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(math.Mat) * cubes.items.len),
-            },
-        }),
-    );
-
     app.title_timer = try core.Timer.start();
     app.timer = try core.Timer.start();
     app.pipeline = core.device.createRenderPipeline(&pipeline_descriptor);

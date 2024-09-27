@@ -6,11 +6,11 @@ const Vertex = @import("cube_mesh.zig").Vertex;
 const vertices = @import("cube_mesh.zig").vertices;
 
 pub const App = @This();
+const debug: bool = true;
 
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 const UniformBufferObject = struct {
-    model: math.Mat,
     view: math.Mat,
     projection: math.Mat,
 };
@@ -30,12 +30,16 @@ timer: core.Timer,
 pipeline: *gpu.RenderPipeline,
 vertex_buffer: *gpu.Buffer,
 uniform_buffer: *gpu.Buffer,
+instance_buffer: *gpu.Buffer,
 bind_group: *gpu.BindGroup,
 cubes: std.ArrayList(Cube),
 camera: Camera,
+allocator: std.mem.Allocator,
 
 pub fn init(app: *App) !void {
     try core.init(.{});
+
+    app.allocator = gpa.allocator();
 
     const shader_module = core.device.createShaderModuleWGSL("cube.wgsl", @embedFile("cube.wgsl"));
 
@@ -61,10 +65,11 @@ pub fn init(app: *App) !void {
         .targets = &.{color_target},
     });
 
-    const bgle = gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0);
+    const uniformBgle = gpu.BindGroupLayout.Entry.buffer(0, .{ .vertex = true }, .uniform, true, 0);
+    const instanceBgle = gpu.BindGroupLayout.Entry.buffer(1, .{ .vertex = true }, .read_only_storage, false, 0);
     const bgl = core.device.createBindGroupLayout(
         &gpu.BindGroupLayout.Descriptor.init(.{
-            .entries = &.{bgle},
+            .entries = &.{uniformBgle, instanceBgle},
         }),
     );
 
@@ -102,11 +107,64 @@ pub fn init(app: *App) !void {
         .size = @sizeOf(UniformBufferObject),
         .mapped_at_creation = .false,
     });
+
+    var cubes = std.ArrayList(Cube).init(app.allocator);
+
+    const positions = [_]math.F32x4{
+        math.f32x4(0.0, 0.0, 0.0, 1.0),
+        math.f32x4(1.0, 0.0, 0.0, 1.0),
+        math.f32x4(1.0, 1.0, 0.0, 1.0),
+        math.f32x4(1.0, 1.0, 1.0, 1.0),
+    };
+
+    const singelCube = Cube{ .position = math.identity() };
+    try cubes.append(singelCube);
+    if (debug) {
+        const translation = math.Vec{
+            singelCube.position[3][0],
+            singelCube.position[3][1],
+            singelCube.position[3][2],
+            singelCube.position[3][3],
+        };
+        std.debug.print("Identity Cube: {any}\n", .{translation});
+    }
+
+    for (positions) |pos| {
+        const translated = math.translate(math.identity(), pos);
+        try cubes.append(Cube{ .position = translated });
+        if (debug) {
+            const translation = math.Vec{
+                translated[3][0],
+                translated[3][1],
+                translated[3][2],
+                translated[3][3],
+            };
+            std.debug.print("Cube position: {any}\n", .{translation});
+        }
+    }
+
+    const instance_buffer = core.device.createBuffer(&.{
+        .usage = .{ .copy_dst = true, .storage = true },
+        .size = @sizeOf(math.Mat) * cubes.items.len,
+        .mapped_at_creation = .true,
+    });
+
+    {
+        const mapped = instance_buffer.getMappedRange(math.Mat, 0, cubes.items.len);
+        var i: usize = 0;
+        for (cubes.items) |cube| {
+            mapped.?[i] = cube.position;
+            i += 1;
+        }
+        instance_buffer.unmap();
+    }
+
     const bind_group = core.device.createBindGroup(
         &gpu.BindGroup.Descriptor.init(.{
             .layout = bgl,
             .entries = &.{
                 gpu.BindGroup.Entry.buffer(0, uniform_buffer, 0, @sizeOf(UniformBufferObject)),
+                gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(math.Mat) * cubes.items.len),
             },
         }),
     );
@@ -118,52 +176,105 @@ pub fn init(app: *App) !void {
     app.uniform_buffer = uniform_buffer;
     app.bind_group = bind_group;
     app.camera = Camera{
-        .position = math.f32x4(0, 4, 2, 1),
+        .position = math.f32x4(0, 4, 4, 1),
         .target = math.f32x4(0, 0, 0, 1),
         .up = math.f32x4(0, 0, 1, 0),
     };
+    app.instance_buffer = instance_buffer;
+    app.cubes = cubes;
 
     shader_module.release();
     pipeline_layout.release();
     bgl.release();
 }
 
+pub fn turnY(position: math.Vec, angle: f32) math.Vec {
+    const cosAngle = std.math.cos(angle);
+    const sinAngle = std.math.sin(angle);
+    return math.Vec{
+        position[0] * cosAngle - position[2] * sinAngle,
+        position[1],
+        position[0] * sinAngle + position[2] * cosAngle,
+        position[3],
+    };
+}
+
 pub fn deinit(app: *App) void {
     defer _ = gpa.deinit();
     defer core.deinit();
 
+    app.cubes.deinit();
     app.vertex_buffer.release();
     app.uniform_buffer.release();
+    app.instance_buffer.release();
     app.bind_group.release();
-    app.pipeline.release();
-}
+    app.pipeline.release();}
 
 pub fn update(app: *App) !bool {
+
+    // const speed = zm.Vec{ delta_time * 5, delta_time * 5, delta_time * 5, delta_time * 5 };
+
     var iter = core.pollEvents();
     while (iter.next()) |event| {
         switch (event) {
             .key_press => |ev| {
-                if (ev.key == .space) return true;
-                if (ev.key == .w) {
-                    app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
-                } else if (ev.key == .s) {
-                    app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
-                } else if (ev.key == .d) {
-                    app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
-                } else if (ev.key == .a) {
-                    app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
+                switch (ev.key) {
+                    .space => return true,
+                    .q => {
+                        // rotate camera to the left
+                        app.camera.position = turnY(app.camera.position, 0.1);
+                    },
+                    .e => {
+                        // rotate camera to the right
+                        app.camera.position = turnY(app.camera.position, -0.1);
+                    },
+                    .w => {
+                        app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
+                        app.camera.target = app.camera.target + math.f32x4(0, 0, 0.1, 0);
+                    },
+                    .s => {
+                        app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
+                        app.camera.target = app.camera.target - math.f32x4(0, 0, 0.1, 0);
+                    },
+                    .d => {
+                        app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
+                        app.camera.target = app.camera.target + math.f32x4(0.1, 0, 0, 0);
+                    },
+                    .a => {
+                        app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
+                        app.camera.target = app.camera.target - math.f32x4(0.1, 0, 0, 0);
+                    },
+                    else => {},
                 }
             },
             .key_repeat => |ev| {
-                if (ev.key == .space) return true;
-                if (ev.key == .w) {
-                    app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
-                } else if (ev.key == .s) {
-                    app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
-                } else if (ev.key == .d) {
-                    app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
-                } else if (ev.key == .a) {
-                    app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
+                switch (ev.key) {
+                    .space => return true,
+                    .q => {
+                        // rotate camera to the left
+                        app.camera.position = turnY(app.camera.position, 0.1);
+                    },
+                    .e => {
+                        // rotate camera to the right
+                        app.camera.position = turnY(app.camera.position, -0.1);
+                    },
+                    .w => {
+                        app.camera.position = app.camera.position + math.f32x4(0, 0, 0.1, 0);
+                        app.camera.target = app.camera.target + math.f32x4(0, 0, 0.1, 0);
+                    },
+                    .s => {
+                        app.camera.position = app.camera.position - math.f32x4(0, 0, 0.1, 0);
+                        app.camera.target = app.camera.target - math.f32x4(0, 0, 0.1, 0);
+                    },
+                    .d => {
+                        app.camera.position = app.camera.position + math.f32x4(0.1, 0, 0, 0);
+                        app.camera.target = app.camera.target + math.f32x4(0.1, 0, 0, 0);
+                    },
+                    .a => {
+                        app.camera.position = app.camera.position - math.f32x4(0.1, 0, 0, 0);
+                        app.camera.target = app.camera.target - math.f32x4(0.1, 0, 0, 0);
+                    },
+                    else => {},
                 }
             },
             .close => return true,
@@ -186,7 +297,6 @@ pub fn update(app: *App) !bool {
     });
 
     {
-        const model = math.identity();
         const view = math.lookAtRh(
             app.camera.position,
             app.camera.target,
@@ -199,7 +309,6 @@ pub fn update(app: *App) !bool {
             10,
         );
         const ubo = UniformBufferObject{
-            .model = model,
             .view = view,
             .projection = proj,
         };
@@ -210,7 +319,7 @@ pub fn update(app: *App) !bool {
     pass.setPipeline(app.pipeline);
     pass.setVertexBuffer(0, app.vertex_buffer, 0, @sizeOf(Vertex) * vertices.len);
     pass.setBindGroup(0, app.bind_group, &.{0});
-    pass.draw(vertices.len, 1, 0, 0);
+    pass.draw(vertices.len, @intCast(app.cubes.items.len), 0, 0);
     pass.end();
     pass.release();
 
@@ -225,9 +334,10 @@ pub fn update(app: *App) !bool {
     // update the window title every second
     if (app.title_timer.read() >= 1.0) {
         app.title_timer.reset();
-        try core.printTitle("Cube with Camera [ {d}fps ] [ Input {d}hz ]", .{
+        try core.printTitle("Cube with Camera [ {d}fps ] [ Input {d}hz ] [ Cube(s): {d} ]", .{
             core.frameRate(),
             core.inputRate(),
+            app.cubes.items.len,
         });
     }
 

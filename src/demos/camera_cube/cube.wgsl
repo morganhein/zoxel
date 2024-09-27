@@ -1,10 +1,14 @@
 struct Uniforms {
-    model : mat4x4<f32>,
     view : mat4x4<f32>,
     projection : mat4x4<f32>,
 }
 
+struct Cube {
+    position : mat4x4<f32>,
+}
+
 @group(0) @binding(0) var<uniform> ubo : Uniforms;
+@group(0) @binding(1) var<storage, read> instance_data : array<Cube>;
 
 struct VertexOut {
      @builtin(position) position_clip : vec4<f32>,
@@ -14,12 +18,16 @@ struct VertexOut {
 
 @vertex fn vertex_main(
      @location(0) position : vec4<f32>,
-     @location(1) uv: vec2<f32>
+     @location(1) uv: vec2<f32>,
+     @builtin(instance_index) instance_index: u32
 ) -> VertexOut {
      var output : VertexOut;
 
+     // Get the model matrix for this instance
+     let cube = instance_data[instance_index];
+
      // Calculate the position in world space
-     var worldPosition : vec4<f32> = ubo.model * position;
+     var worldPosition : vec4<f32> = cube.position * position;
 
      // Calculate the position in view space
      var viewPosition : vec4<f32> = ubo.view * worldPosition;

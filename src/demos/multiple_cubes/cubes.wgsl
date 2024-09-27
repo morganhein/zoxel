@@ -9,7 +9,7 @@ struct Cube {
 }
 
 @group(0) @binding(0) var<uniform> ubo : Uniforms;
-@group(1) @binding(0) var<storage, read> instance_data : array<Cube>;
+@group(0) @binding(1) var<storage, read> instance_data : array<Cube>;
 
 struct VertexOut {
      @builtin(position) position_clip : vec4<f32>,
