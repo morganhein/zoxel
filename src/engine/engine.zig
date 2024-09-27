@@ -306,7 +306,12 @@ pub const Engine = struct {
     fn handleKeypress(debug: bool, camera: *cam, key: core.KeyEvent) bool {
         debugKeyPress(debug, key);
         switch (key.key) {
-            .space => return true,
+            .space => {
+                camera.moveUp(0.1);
+            },
+            .c => {
+                camera.moveUp(-0.1);
+            },
             .q => {
                 // rotate camera to the left
                 camera.turnY(0.1);
@@ -326,6 +331,9 @@ pub const Engine = struct {
             },
             .a => {
                 camera.moveLeft(0.1);
+            },
+            .escape => {
+                return true;
             },
             else => {
                 return false;

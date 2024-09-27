@@ -17,3 +17,8 @@
 - https://github.com/zenolith-ui/zenolith/tree/master/src
 - https://github.com/Jack-Ji/jok/tree/main
 
+# Mach Demos
+
+- https://github.com/hexops/mach/tree/0.4/src/core/examples/instanced-cube
+
+
