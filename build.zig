@@ -3,11 +3,10 @@ const mach = @import("mach");
 
 const Demo = enum {
     engine,
-    claude,
-    rotating,
     camera,
-    multiple,
-    unknown,
+    rotating,
+    triangle,
+    square,
 };
 
 const demo = Demo.engine;
@@ -50,11 +49,10 @@ pub fn build(b: *std.Build) !void {
     var src_path: []const u8 = "src/main.zig";
     switch (demo) {
         Demo.engine => src_path = "src/main.zig",
-        Demo.claude => src_path = "src/demos/claude_cube/main.zig",
         Demo.rotating => src_path = "src/demos/rotating_cube/main.zig",
-        Demo.camera => src_path = "src/demos/camera_cube/main.zig",
-        Demo.multiple => src_path = "src/demos/multiple_cubes/main.zig",
-        else => src_path = "src/main.zig",
+        Demo.camera => src_path = "src/demos/camera_cubes/main.zig",
+        Demo.square => src_path = "src/demos/square/main.zig",
+        Demo.triangle => src_path = "src/demos/triangle/main.zig",
     }
 
     const app = try mach.CoreApp.init(b, mach_dep.builder, .{
