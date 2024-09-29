@@ -42,16 +42,18 @@ pub const Camera = struct {
         self.target = self.position + rotatedDirection;
     }
 
+    // z is "forward" / "backward"
     pub fn moveForward(self: *Camera, distance: f32) void {
-        self.position = self.position + math.f32x4(0, distance, 0, 0);
-        self.target = self.target + math.f32x4(0, distance, 0, 0);
+        self.position = self.position + math.f32x4(0, 0, distance,  0);
+        self.target = self.target + math.f32x4(0, 0, distance, 0);
     }
 
     pub fn moveBackward(self: *Camera, distance: f32) void {
-        self.position = self.position - math.f32x4(0, distance, 0, 0);
-        self.target = self.target - math.f32x4(0, distance, 0, 0);
+        self.position = self.position - math.f32x4(0, 0, distance,  0);
+        self.target = self.target - math.f32x4(0, 0, distance,  0);
     }
 
+    // x is "right" / 'left'
     pub fn moveRight(self: *Camera, distance: f32) void {
         self.position = self.position + math.f32x4(distance, 0, 0, 0);
         self.target = self.target + math.f32x4(distance, 0, 0, 0);
@@ -62,13 +64,14 @@ pub const Camera = struct {
         self.target = self.target - math.f32x4(distance, 0, 0, 0);
     }
 
+    // y is "up" / "down"
     pub fn moveUp(self: *Camera, distance: f32) void {
-        self.position = self.position + math.f32x4(0, 0, distance, 0);
-        self.target = self.target + math.f32x4(0, 0, distance, 0);
+        self.position = self.position + math.f32x4(0, distance, 0, 0);
+        self.target = self.target + math.f32x4(0,  distance, 0,0);
     }
 
     pub fn moveDown(self: *Camera, distance: f32) void {
-        self.position = self.position - math.f32x4(0, 0, distance, 0);
-        self.target = self.target - math.f32x4(0, 0, distance, 0);
+        self.position = self.position - math.f32x4(0, distance, 0, 0);
+        self.target = self.target - math.f32x4(0, distance, 0, 0);
     }
 };

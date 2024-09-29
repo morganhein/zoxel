@@ -35,6 +35,9 @@ pub const Engine = struct {
     instance_buffer: *gpu.Buffer,
     bind_group: *gpu.BindGroup,
 
+    depth_texture: *gpu.Texture,
+    depth_view: *gpu.TextureView,
+
     cubes: std.ArrayList(Cube),
     camera: *cam,
 
@@ -78,6 +81,30 @@ pub const Engine = struct {
             .bind_group_layouts = &bind_group_layouts,
         }));
 
+        // depth
+        const depth_format = gpu.Texture.Format.depth24_plus;
+        const depth_texture = core.device.createTexture(&gpu.Texture.Descriptor{
+            .size = .{
+                .width = core.descriptor.width,
+                .height = core.descriptor.height,
+                .depth_or_array_layers = 1,
+            },
+            .mip_level_count = 1,
+            .sample_count = 1,
+            .dimension = .dimension_2d,
+            .format = depth_format,
+            .usage = .{ .render_attachment = true },
+        });
+        const depth_view = depth_texture.createView(null);
+
+        var depth_stencil_state = gpu.DepthStencilState{
+            .format = depth_format,
+            .depth_write_enabled = gpu.Bool32.true,
+            .depth_compare = .less,
+            .stencil_front = .{},
+            .stencil_back = .{},
+        };
+
         const pipeline_descriptor = gpu.RenderPipeline.Descriptor{
             .label = "cube",
             .fragment = &fragment,
@@ -91,6 +118,7 @@ pub const Engine = struct {
             .primitive = .{
                 .cull_mode = .back,
             },
+            .depth_stencil = &depth_stencil_state,
         };
 
         const vertex_buffer = core.device.createBuffer(&.{
@@ -110,37 +138,33 @@ pub const Engine = struct {
 
         var cubes = std.ArrayList(Cube).init(allocator);
 
-        const positions = [_]math.F32x4{
-            math.f32x4(0.0, 0.0, 0.0, 1.0),
-            math.f32x4(1.0, 0.0, 0.0, 1.0),
-            math.f32x4(1.0, 1.0, 0.0, 1.0),
-            math.f32x4(1.0, 1.0, 1.0, 1.0),
-        };
+        const plane_size = 1000;
+        const cube_size = 1.0;
+        const total_cubes = plane_size * plane_size;
 
-        const singelCube = Cube{ .position = math.identity() };
-        try cubes.append(singelCube);
-        if (debug) {
-            const translation = math.Vec{
-                singelCube.position[3][0],
-                singelCube.position[3][1],
-                singelCube.position[3][2],
-                singelCube.position[3][3],
-            };
-            std.debug.print("Identity Cube: {any}\n", .{translation});
+        try cubes.ensureTotalCapacity(total_cubes);
+
+        var x: i32 = plane_size / -2;
+        std.debug.print("x {d}", .{x});
+        while (x < (plane_size / 2)) : (x += 1) {
+            var z: i32 = plane_size / -2;
+            while (z < (plane_size / 2)) : (z += 1) {
+                const position = math.translate(
+                    math.identity(),
+                    math.f32x4(
+                        @as(f32, @floatFromInt(x)) * cube_size,
+                        0,
+                        @as(f32, @floatFromInt(z)) * cube_size,
+                        1
+                    )
+                );
+                // std.debug.print("position {any}\n", .{position});
+                cubes.appendAssumeCapacity(Cube{ .position = position });
+            }
         }
 
-        for (positions) |pos| {
-            const translated = math.translate(math.identity(), pos);
-            try cubes.append(Cube{ .position = translated });
-            if (debug) {
-                const translation = math.Vec{
-                    translated[3][0],
-                    translated[3][1],
-                    translated[3][2],
-                    translated[3][3],
-                };
-                std.debug.print("Cube position: {any}\n", .{translation});
-            }
+        if (debug) {
+            std.debug.print("Created {} cubes\n", .{cubes.items.len});
         }
 
         const instance_buffer = core.device.createBuffer(&.{
@@ -179,7 +203,7 @@ pub const Engine = struct {
         camera.* = cam{
             .position = math.f32x4(0, 4, 4, 1),
             .target = math.f32x4(0, 0, 0, 1),
-            .up = math.f32x4(0, 0, 1, 0),
+            .up = math.f32x4(0, 1, 0, 0),
         };
         std.debug.print("\ninit camera position:\n", .{});
         debugCam(debug, camera);
@@ -193,6 +217,8 @@ pub const Engine = struct {
             .pipeline = pipeline,
             .vertex_buffer = vertex_buffer,
             .uniform_buffer = uniform_buffer,
+            .depth_texture = depth_texture,
+            .depth_view = depth_view,
             .bind_group = bind_group,
             .title_timer = title_timer,
             .timer = timer,
@@ -213,6 +239,8 @@ pub const Engine = struct {
         engine.instance_buffer.release();
         engine.bind_group.release();
         engine.pipeline.release();
+
+        engine.depth_texture.release();
 
         // clean up the camera
         engine.allocator.destroy(engine.camera);
@@ -248,10 +276,19 @@ pub const Engine = struct {
             .store_op = .store,
         };
 
+        // depth
+        const depth_attachment = gpu.RenderPassDepthStencilAttachment{
+            .view = engine.depth_view,
+            .depth_clear_value = 1.0,
+            .depth_load_op = .clear,
+            .depth_store_op = .store,
+        };
+
         const queue = core.queue;
         const encoder = core.device.createCommandEncoder(null);
         const render_pass_info = gpu.RenderPassDescriptor.init(.{
             .color_attachments = &.{color_attachment},
+            .depth_stencil_attachment = &depth_attachment,
         });
 
         {
@@ -314,11 +351,11 @@ pub const Engine = struct {
             },
             .q => {
                 // rotate camera to the left
-                camera.turnY(0.1);
+                camera.turnY(-0.1);
             },
             .e => {
                 // rotate camera to the right
-                camera.turnY(-0.1);
+                camera.turnY(0.1);
             },
             .w => {
                 camera.moveForward(0.1);
