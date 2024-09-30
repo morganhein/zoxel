@@ -217,7 +217,7 @@ pub const Engine = struct {
         engine.bind_group.release();
         engine.pipeline.release();
 
-        // engine.depth_texture.release();
+        engine.depth_texture.release();
 
         // clean up the camera
         engine.allocator.destroy(engine.camera);
