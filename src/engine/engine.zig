@@ -138,7 +138,7 @@ pub const Engine = struct {
             .mapped_at_creation = .false,
         });
 
-        const cubes = try addCubes(1000);
+        const cubes = try addCubes(allocator, 1000);
 
         if (debug) {
             std.debug.print("Created {} cubes\n", .{cubes.items.len});
@@ -390,20 +390,20 @@ pub const Engine = struct {
         );
     }
 
-    fn addCubes(allocator: std.mem.Allocator, count: usize) !std.ArrayList(Cube) {
+    fn addCubes(allocator: std.mem.Allocator, count: comptime_int) !std.ArrayList(Cube) {
         var cubes = std.ArrayList(Cube).init(allocator);
 
         const plane_size = count;
         const cube_size = 1.0;
-        const total_cubes = plane_size * plane_size;
+        const total_cubes =(plane_size * plane_size);
 
         try cubes.ensureTotalCapacity(total_cubes);
 
         var rnd = RndGen.init(0);
-        var x: i32 = plane_size / -2;
+        var x: i32 = @divTrunc(plane_size, -2);
         std.debug.print("x {d}", .{x});
         while (x < (plane_size / 2)) : (x += 1) {
-            var z: i32 = plane_size / -2;
+            var z: i32 = @divTrunc(plane_size, -2);
             while (z < (plane_size / 2)) : (z += 1) {
                 const position = math.translate(
                     math.identity(),
@@ -417,6 +417,7 @@ pub const Engine = struct {
                 cubes.appendAssumeCapacity(Cube{ .position = position, .color = randomColor(&rnd) });
             }
         }
+        return cubes;
     }
 };
 
