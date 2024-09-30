@@ -10,6 +10,7 @@ const math = @import("zmath");
 const Vertex = @import("cube_mesh.zig").Vertex;
 const vertices = @import("cube_mesh.zig").vertices;
 const cam = @import("camera.zig").Camera;
+const RndGen = std.rand.DefaultPrng;
 
 // uniform buffers contain data that is constant for all vertices in a draw call
 // like lighting, camera position, etc.
@@ -20,6 +21,7 @@ const UniformBufferObject = struct {
 
 const Cube = struct {
     position: math.Mat,
+    color: math.Vec,
 };
 
 pub const Engine = struct {
@@ -136,32 +138,7 @@ pub const Engine = struct {
             .mapped_at_creation = .false,
         });
 
-        var cubes = std.ArrayList(Cube).init(allocator);
-
-        const plane_size = 1000;
-        const cube_size = 1.0;
-        const total_cubes = plane_size * plane_size;
-
-        try cubes.ensureTotalCapacity(total_cubes);
-
-        var x: i32 = plane_size / -2;
-        std.debug.print("x {d}", .{x});
-        while (x < (plane_size / 2)) : (x += 1) {
-            var z: i32 = plane_size / -2;
-            while (z < (plane_size / 2)) : (z += 1) {
-                const position = math.translate(
-                    math.identity(),
-                    math.f32x4(
-                        @as(f32, @floatFromInt(x)) * cube_size,
-                        0,
-                        @as(f32, @floatFromInt(z)) * cube_size,
-                        1
-                    )
-                );
-                // std.debug.print("position {any}\n", .{position});
-                cubes.appendAssumeCapacity(Cube{ .position = position });
-            }
-        }
+        const cubes = try addCubes(1000);
 
         if (debug) {
             std.debug.print("Created {} cubes\n", .{cubes.items.len});
@@ -402,4 +379,55 @@ pub const Engine = struct {
         }
         std.debug.print("Key Pressed: {any}\n", .{key.key});
     }
+
+    pub fn randomColor(rng: *std.Random.Xoshiro256) math.Vec {
+        const max_u64 = @as(f32, std.math.maxInt(u64));
+        return math.f32x4(
+            @as(f32, @floatFromInt(rng.next())) / max_u64,
+            @as(f32, @floatFromInt(rng.next())) / max_u64,
+            @as(f32, @floatFromInt(rng.next())) / max_u64,
+            1.0,
+        );
+    }
+
+    fn addCubes(allocator: std.mem.Allocator, count: usize) !std.ArrayList(Cube) {
+        var cubes = std.ArrayList(Cube).init(allocator);
+
+        const plane_size = count;
+        const cube_size = 1.0;
+        const total_cubes = plane_size * plane_size;
+
+        try cubes.ensureTotalCapacity(total_cubes);
+
+        var rnd = RndGen.init(0);
+        var x: i32 = plane_size / -2;
+        std.debug.print("x {d}", .{x});
+        while (x < (plane_size / 2)) : (x += 1) {
+            var z: i32 = plane_size / -2;
+            while (z < (plane_size / 2)) : (z += 1) {
+                const position = math.translate(
+                    math.identity(),
+                    math.f32x4(
+                        @as(f32, @floatFromInt(x)) * cube_size,
+                        0,
+                        @as(f32, @floatFromInt(z)) * cube_size,
+                        1
+                    )
+                );
+                cubes.appendAssumeCapacity(Cube{ .position = position, .color = randomColor(&rnd) });
+            }
+        }
+    }
 };
+
+test "randomColor returns valid color" {
+    var rng = std.rand.DefaultPrng.init(0);
+    defer rng.deinit();
+
+    const color = Engine.randomColor(rng);
+
+    try std.testing.expect(color.x >= 0.0 and color.x <= 1.0);
+    try std.testing.expect(color.y >= 0.0 and color.y <= 1.0);
+    try std.testing.expect(color.z >= 0.0 and color.z <= 1.0);
+    try std.testing.expect(color.w == 1.0);
+}
