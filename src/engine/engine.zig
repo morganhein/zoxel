@@ -277,8 +277,8 @@ pub const Engine = struct {
             const proj = math.perspectiveFovRh(
                 (std.math.pi / 4.0),
                 @as(f32, @floatFromInt(core.descriptor.width)) / @as(f32, @floatFromInt(core.descriptor.height)),
-                0.1,      // Near plane
-                1000.0,   // Far plane increased to 1000.0
+                0.1, // Near plane
+                1000.0, // Far plane increased to 1000.0
             );
             const ubo = UniformBufferObject{
                 .view = view,
@@ -311,7 +311,7 @@ pub const Engine = struct {
                 core.inputRate(),
                 engine.cubes.items.len,
             });
-          debugInfo(engine);
+            // debugInfo(engine);
         }
 
         return false;
@@ -394,8 +394,8 @@ pub const Engine = struct {
         var cubes = std.ArrayList(Cube).init(allocator);
 
         const plane_size = count;
-        const cube_size = 1.5;
-        const total_cubes =(plane_size * plane_size);
+        const cube_size = 2.0; // WHY IS THIS? If it's set to 1 then the cubes overlap
+        const total_cubes = (plane_size * plane_size);
 
         try cubes.ensureTotalCapacity(total_cubes);
 
@@ -413,15 +413,8 @@ pub const Engine = struct {
                 } else {
                     rise_above = true;
                 }
-                const position = math.translate(
-                    math.identity(),
-                    math.f32x4(
-                        @as(f32, @floatFromInt(x)) * cube_size,
-                        y,
-                        @as(f32, @floatFromInt(z)) * cube_size,
-                        1
-                    )
-                );
+                const position = math.translate(math.identity(), math.f32x4(@as(f32, @floatFromInt(x)) * cube_size, y, @as(f32, @floatFromInt(z)) * cube_size, 1));
+                // std.debug.print("Cube Position: {any}\n", .{ position[3] });
                 cubes.appendAssumeCapacity(Cube{ .position = position, .color = randomColor(&rnd) });
             }
         }

@@ -28,20 +28,8 @@ struct VertexOut {
      // Get the model matrix for this instance
      let cube = instance_data[instance_index];
 
-      // Create a scaling matrix to scale the model by 75%
-      let scale = mat4x4<f32>(
-          vec4<f32>(0.75, 0.0, 0.0, 0.0),
-          vec4<f32>(0.0, 0.75, 0.0, 0.0),
-          vec4<f32>(0.0, 0.0, 0.75, 0.0),
-          vec4<f32>(0.0, 0.0, 0.0, 1.0)
-      );
-
-      // Apply the scaling transformation
-      var scaledPosition : vec4<f32> = scale * position;
-
       // Calculate the position in world space
-      var worldPosition : vec4<f32> = cube.position * scaledPosition;
-
+      var worldPosition : vec4<f32> = cube.position * position;
 
      // Calculate the position in view space
      var viewPosition : vec4<f32> = ubo.view * worldPosition;
