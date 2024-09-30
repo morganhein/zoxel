@@ -394,22 +394,30 @@ pub const Engine = struct {
         var cubes = std.ArrayList(Cube).init(allocator);
 
         const plane_size = count;
-        const cube_size = 1.0;
+        const cube_size = 1.5;
         const total_cubes =(plane_size * plane_size);
 
         try cubes.ensureTotalCapacity(total_cubes);
 
         var rnd = RndGen.init(0);
-        var x: i32 = @divTrunc(plane_size, -2);
+        var x: i32 = -@divTrunc(plane_size, 2);
         std.debug.print("x {d}", .{x});
         while (x < (plane_size / 2)) : (x += 1) {
-            var z: i32 = @divTrunc(plane_size, -2);
+            var z: i32 = -@divTrunc(plane_size, 2);
+            var rise_above: bool = false;
             while (z < (plane_size / 2)) : (z += 1) {
+                var y: f32 = 0;
+                if (rise_above) {
+                    y = 1;
+                    rise_above = false;
+                } else {
+                    rise_above = true;
+                }
                 const position = math.translate(
                     math.identity(),
                     math.f32x4(
                         @as(f32, @floatFromInt(x)) * cube_size,
-                        0,
+                        y,
                         @as(f32, @floatFromInt(z)) * cube_size,
                         1
                     )
