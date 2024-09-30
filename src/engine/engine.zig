@@ -1,5 +1,6 @@
 //stdlib
 const std = @import("std");
+const RndGen = std.rand.DefaultPrng;
 
 // external
 const core = @import("mach").core;
@@ -7,10 +8,9 @@ const gpu = core.gpu;
 const math = @import("zmath");
 
 // internal
-const Vertex = @import("cube_mesh.zig").Vertex;
-const vertices = @import("cube_mesh.zig").vertices;
+const Vertex = @import("shapes/cube_mesh.zig").Vertex;
+const vertices = @import("shapes/cube_mesh.zig").vertices;
 const cam = @import("camera.zig").Camera;
-const RndGen = std.rand.DefaultPrng;
 
 // uniform buffers contain data that is constant for all vertices in a draw call
 // like lighting, camera position, etc.
@@ -138,7 +138,7 @@ pub const Engine = struct {
             .mapped_at_creation = .false,
         });
 
-        const cubes = try addCubes(allocator, 1000);
+        const cubes = try addCubes(allocator, 10);
 
         if (debug) {
             std.debug.print("Created {} cubes\n", .{cubes.items.len});
