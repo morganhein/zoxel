@@ -277,8 +277,8 @@ pub const Engine = struct {
             const proj = math.perspectiveFovRh(
                 (std.math.pi / 4.0),
                 @as(f32, @floatFromInt(core.descriptor.width)) / @as(f32, @floatFromInt(core.descriptor.height)),
-                0.1,
-                10,
+                0.1,      // Near plane
+                1000.0,   // Far plane increased to 1000.0
             );
             const ubo = UniformBufferObject{
                 .view = view,
