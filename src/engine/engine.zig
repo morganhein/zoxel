@@ -146,15 +146,15 @@ pub const Engine = struct {
 
         const instance_buffer = core.device.createBuffer(&.{
             .usage = .{ .copy_dst = true, .storage = true },
-            .size = @sizeOf(math.Mat) * cubes.items.len,
+            .size = @sizeOf(Cube) * cubes.items.len,
             .mapped_at_creation = .true,
         });
 
         {
-            const mapped = instance_buffer.getMappedRange(math.Mat, 0, cubes.items.len);
+            const mapped = instance_buffer.getMappedRange(Cube, 0, cubes.items.len);
             var i: usize = 0;
             for (cubes.items) |cube| {
-                mapped.?[i] = cube.position;
+                mapped.?[i] = cube;
                 i += 1;
             }
             instance_buffer.unmap();
@@ -165,7 +165,7 @@ pub const Engine = struct {
                 .layout = bgl,
                 .entries = &.{
                     gpu.BindGroup.Entry.buffer(0, uniform_buffer, 0, @sizeOf(UniformBufferObject)),
-                    gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(math.Mat) * cubes.items.len),
+                    gpu.BindGroup.Entry.buffer(1, instance_buffer, 0, @sizeOf(Cube) * cubes.items.len),
                 },
             }),
         );
@@ -217,7 +217,7 @@ pub const Engine = struct {
         engine.bind_group.release();
         engine.pipeline.release();
 
-        engine.depth_texture.release();
+        // engine.depth_texture.release();
 
         // clean up the camera
         engine.allocator.destroy(engine.camera);

@@ -5,7 +5,7 @@ struct Uniforms {
 
 struct Cube {
     position : mat4x4<f32>,
-    color: vec3<f32>,
+    color: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> ubo : Uniforms;
@@ -37,7 +37,7 @@ struct VertexOut {
      // Calculate the position in clip space
      output.position_clip = ubo.projection * viewPosition;
 
-     output.instance_color = cube.color;
+     output.instance_color = cube.color.xyz;
 
      output.fragUV = uv;
      output.fragPosition = worldPosition;
@@ -50,7 +50,9 @@ struct VertexOut {
     @location(1) fragPosition: vec4<f32>,
     @location(2) instance_color: vec3<f32>
 ) -> @location(0) vec4<f32> {
-    return vec4<f32>(instance_color, 1.0);
+    // return a static red color
+    // return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+     return vec4<f32>(instance_color, 1.0);
 }
 
 
